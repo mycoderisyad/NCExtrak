@@ -5,7 +5,7 @@
 	<name>NCExtrak</name>
 	<summary>Extract archives directly from Nextcloud Files</summary>
 	<description>Extract supported archives directly from the Files context menu.</description>
-	<version>0.1.0</version>
+	<version>0.1.2</version>
 	<licence>agpl</licence>
 	<author mail="maintainer@example.com">NCExtrak</author>
 	<namespace>NCExtrak</namespace>

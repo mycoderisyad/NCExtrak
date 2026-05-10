@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+	resolve: {
+		alias: {
+			path: 'path-browserify',
+		},
+	},
 	build: {
 		emptyOutDir: false,
 		outDir: 'js',
