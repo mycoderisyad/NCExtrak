@@ -14,6 +14,8 @@ import { isArchiveMime } from '../util/mime'
 interface FileNodeLike {
   id?: string
   fileid?: number
+  basename?: string
+  source?: string
   mime?: string | null
   permissions?: number
   attributes?: {
@@ -33,12 +35,35 @@ const extractFileId = (node: FileNodeLike): number => {
   return typeof rawId === 'number' ? rawId : 0
 }
 
-const userCanCreateInFolder = (node: FileNodeLike): boolean => {
-  if (typeof node.permissions !== 'number') {
+const userCanCreateInFolder = (folder: { permissions?: number } | null | undefined): boolean => {
+  if (typeof folder?.permissions !== 'number') {
     return false
   }
 
-  return (node.permissions & Permission.CREATE) !== 0
+  return (folder.permissions & Permission.CREATE) !== 0
+}
+
+const getNodeName = (node: FileNodeLike): string => {
+  if (typeof node.basename === 'string' && node.basename.trim() !== '') {
+    return node.basename
+  }
+  if (typeof node.source === 'string' && node.source.trim() !== '') {
+    const parts = node.source.split('/')
+    const candidate = parts[parts.length - 1]
+    return candidate ?? ''
+  }
+  return ''
+}
+
+const archiveNamePattern = /\.(zip|rar|7z|tar|tgz|tbz2|gz|bz2)$/i
+
+const isArchiveCandidate = (node: FileNodeLike): boolean => {
+  if (isArchiveMime(node.mime)) {
+    return true
+  }
+
+  const name = getNodeName(node)
+  return archiveNamePattern.test(name)
 }
 
 const refreshFileView = (): void => {
@@ -90,7 +115,7 @@ export const registerExtractAction = (): void => {
       }
 
       const node = context.nodes[0] as unknown as FileNodeLike
-      return isArchiveMime(node.mime) && userCanCreateInFolder(node)
+      return isArchiveCandidate(node) && userCanCreateInFolder(context.folder)
     },
     exec: async (context: ActionContextSingle) => {
       const targetNode = context.nodes[0] as unknown as FileNodeLike
