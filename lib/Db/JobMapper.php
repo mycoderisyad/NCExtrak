@@ -67,6 +67,17 @@ class JobMapper extends QBMapper
         return $this->update($job);
     }
 
+    public function updateProgress(Job $job, int $progress): Job
+    {
+        $clamped = max(0, min(99, $progress));
+        if ($clamped === $job->getProgress()) {
+            return $job;
+        }
+        $job->setProgress($clamped);
+        $job->setUpdatedAt(time());
+        return $this->update($job);
+    }
+
     public function markDone(Job $job, string $resultPayload): Job
     {
         $job->setState('done');

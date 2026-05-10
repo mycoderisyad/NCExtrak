@@ -9,17 +9,20 @@ use OCA\NCExtrak\Notification\NotificationService;
 use OCA\NCExtrak\Service\ExtractOptionsFactory;
 use OCA\NCExtrak\Service\ExtractionService;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\QueuedJob;
 use Throwable;
 
 class ExtractJob extends QueuedJob
 {
     public function __construct(
+        ITimeFactory $time,
         private JobMapper $jobMapper,
         private ExtractionService $extractionService,
         private NotificationService $notificationService,
         private ExtractOptionsFactory $optionsFactory,
     ) {
+        parent::__construct($time);
     }
 
     /**
@@ -44,10 +47,16 @@ class ExtractJob extends QueuedJob
         try {
             $options = $this->optionsFactory->create($job->getOverwrite());
 
+            $jobMapper = $this->jobMapper;
+            $progressCallback = static function (int $percent) use ($jobMapper, $job): void {
+                $jobMapper->updateProgress($job, $percent);
+            };
+
             $result = $this->extractionService->extractForUser(
                 $job->getUid(),
                 $job->getSourceFileId(),
                 $options,
+                $progressCallback,
             );
 
             $this->jobMapper->markDone($job, (string) json_encode([

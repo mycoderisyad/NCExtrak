@@ -27,8 +27,12 @@ class ExtractionService
     ) {
     }
 
-    public function extractForUser(string $userId, int $fileId, ExtractOptions $options): ExtractResult
-    {
+    public function extractForUser(
+        string $userId,
+        int $fileId,
+        ExtractOptions $options,
+        ?callable $progressCallback = null,
+    ): ExtractResult {
         $userFolder = $this->rootFolder->getUserFolder($userId);
         $nodes = $userFolder->getById($fileId);
         if ($nodes === []) {
@@ -43,8 +47,10 @@ class ExtractionService
         [$workspaceRoot, $tempArchivePath, $tempExtractPath] = $this->createWorkspacePaths($options);
 
         try {
+            $this->reportProgress($progressCallback, 1);
             $this->assertWorkspaceCapacity($workspaceRoot, $source, $options);
             $this->copyNodeToLocal($source, $tempArchivePath);
+            $this->reportProgress($progressCallback, 15);
             $format = $this->archiveDetector->detectFormat($tempArchivePath, $source->getName());
             if ($format === null) {
                 throw new ExtractionException('Could not detect archive format');
@@ -52,13 +58,17 @@ class ExtractionService
 
             $extractor = $this->extractorRegistry->getExtractor($format);
             $extractor->extract($tempArchivePath, $tempExtractPath);
+            $this->reportProgress($progressCallback, 50);
 
             [$targetFolder, $targetFolderName] = $this->createTargetFolder($source, $options->overwrite);
             [$fileCount, $folderCount, $totalBytes] = $this->copyExtractedTree(
                 $tempExtractPath,
                 $targetFolder,
                 $options,
+                $progressCallback,
             );
+            $this->refreshFolderMetadata($targetFolder);
+            $this->reportProgress($progressCallback, 99);
 
             return new ExtractResult(
                 format: $format,
@@ -119,12 +129,18 @@ class ExtractionService
     /**
      * @return array{int, int, int}
      */
-    private function copyExtractedTree(string $localRoot, Folder $targetFolder, ExtractOptions $options): array
-    {
+    private function copyExtractedTree(
+        string $localRoot,
+        Folder $targetFolder,
+        ExtractOptions $options,
+        ?callable $progressCallback = null,
+    ): array {
         $fileCount = 0;
         $folderCount = 0;
         $totalBytes = 0;
         $entryCount = 0;
+        $totalEntries = $this->countEntries($localRoot);
+        $lastReported = 50;
 
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($localRoot, RecursiveDirectoryIterator::SKIP_DOTS),
@@ -184,9 +200,64 @@ class ExtractionService
             if ($totalBytes > $options->maxUncompressedSizeBytes) {
                 throw new ArchiveTooLargeException('Uncompressed archive size limit exceeded');
             }
+
+            if ($progressCallback !== null && $totalEntries > 0) {
+                $copied = $fileCount + $folderCount;
+                $percent = 50 + (int) floor(($copied / $totalEntries) * 49);
+                if ($percent > $lastReported) {
+                    $this->reportProgress($progressCallback, $percent);
+                    $lastReported = $percent;
+                }
+            }
         }
 
         return [$fileCount, $folderCount, $totalBytes];
+    }
+
+    private function refreshFolderMetadata(Folder $targetFolder): void
+    {
+        try {
+            $storage = $targetFolder->getStorage();
+            $scanner = $storage->getScanner();
+            $internalPath = $targetFolder->getInternalPath();
+            if (is_string($internalPath) && $internalPath !== '') {
+                $scanner->scan($internalPath);
+            }
+            $targetFolder->touch();
+        } catch (Throwable) {
+            // Keep extraction successful even if metadata refresh fails.
+        }
+    }
+
+    private function countEntries(string $localRoot): int
+    {
+        $count = 0;
+        try {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($localRoot, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::SELF_FIRST,
+            );
+            foreach ($iterator as $entry) {
+                $count++;
+            }
+        } catch (Throwable) {
+            return 0;
+        }
+
+        return $count;
+    }
+
+    private function reportProgress(?callable $progressCallback, int $percent): void
+    {
+        if ($progressCallback === null) {
+            return;
+        }
+
+        $clamped = max(0, min(99, $percent));
+        try {
+            $progressCallback($clamped);
+        } catch (Throwable) {
+        }
     }
 
     private function resolveFolder(Folder $rootFolder, string $relativePath): Folder

@@ -57,21 +57,21 @@ class ExtractOptionsFactory
     {
         return match ($profile) {
             self::PROFILE_HIGH_THROUGHPUT => [
-                'syncSizeLimitBytes' => 33554432,
+                'syncSizeLimitBytes' => 1073741824,
                 'maxEntries' => 1000000,
                 'maxUncompressedSizeBytes' => 4398046511104,
                 'workspaceReserveBytes' => 17179869184,
                 'expectedExpansionFactor' => 2,
             ],
             self::PROFILE_BALANCED => [
-                'syncSizeLimitBytes' => 16777216,
+                'syncSizeLimitBytes' => 524288000,
                 'maxEntries' => 600000,
                 'maxUncompressedSizeBytes' => 3298534883328,
                 'workspaceReserveBytes' => 12884901888,
                 'expectedExpansionFactor' => 2,
             ],
             default => [
-                'syncSizeLimitBytes' => 8388608,
+                'syncSizeLimitBytes' => 209715200,
                 'maxEntries' => 400000,
                 'maxUncompressedSizeBytes' => 2199023255552,
                 'workspaceReserveBytes' => 8589934592,

@@ -8,7 +8,7 @@ use OCP\AppFramework\Db\Entity;
 
 class Job extends Entity
 {
-    public ?int $id = null;
+    public $id = null;
     protected string $uid = '';
     protected int $sourceFileId = 0;
     protected string $state = 'queued';
@@ -42,7 +42,7 @@ class Job extends Entity
 
     public function setUid(string $uid): self
     {
-        $this->uid = $uid;
+        $this->setter('uid', [$uid]);
         return $this;
     }
 
@@ -53,7 +53,7 @@ class Job extends Entity
 
     public function setSourceFileId(int $sourceFileId): self
     {
-        $this->sourceFileId = $sourceFileId;
+        $this->setter('sourceFileId', [$sourceFileId]);
         return $this;
     }
 
@@ -64,7 +64,7 @@ class Job extends Entity
 
     public function setState(string $state): self
     {
-        $this->state = $state;
+        $this->setter('state', [$state]);
         return $this;
     }
 
@@ -75,7 +75,7 @@ class Job extends Entity
 
     public function setProgress(int $progress): self
     {
-        $this->progress = $progress;
+        $this->setter('progress', [$progress]);
         return $this;
     }
 
@@ -86,7 +86,7 @@ class Job extends Entity
 
     public function setError(?string $error): self
     {
-        $this->error = $error;
+        $this->setter('error', [$error]);
         return $this;
     }
 
@@ -97,7 +97,7 @@ class Job extends Entity
 
     public function setTargetFolder(string $targetFolder): self
     {
-        $this->targetFolder = $targetFolder;
+        $this->setter('targetFolder', [$targetFolder]);
         return $this;
     }
 
@@ -108,7 +108,7 @@ class Job extends Entity
 
     public function setOverwrite(bool $overwrite): self
     {
-        $this->overwrite = $overwrite;
+        $this->setter('overwrite', [$overwrite]);
         return $this;
     }
 
@@ -119,7 +119,7 @@ class Job extends Entity
 
     public function setResultPayload(?string $resultPayload): self
     {
-        $this->resultPayload = $resultPayload;
+        $this->setter('resultPayload', [$resultPayload]);
         return $this;
     }
 
@@ -130,7 +130,7 @@ class Job extends Entity
 
     public function setCreatedAt(int $createdAt): self
     {
-        $this->createdAt = $createdAt;
+        $this->setter('createdAt', [$createdAt]);
         return $this;
     }
 
@@ -141,7 +141,7 @@ class Job extends Entity
 
     public function setUpdatedAt(int $updatedAt): self
     {
-        $this->updatedAt = $updatedAt;
+        $this->setter('updatedAt', [$updatedAt]);
         return $this;
     }
 }

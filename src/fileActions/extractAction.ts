@@ -1,8 +1,8 @@
-import { showError, showSuccess } from '@nextcloud/dialogs'
+import { showError, showLoading, showSuccess, TOAST_PERMANENT_TIMEOUT } from '@nextcloud/dialogs'
 import { Permission, registerFileAction, type IFileAction, type INode } from '@nextcloud/files'
 import { translate as t } from '@nextcloud/l10n'
 
-import { getExtractJobStatus, requestExtract } from '../api/extractClient'
+import { getExtractJobStatus, requestExtract, type ExtractJobStatus } from '../api/extractClient'
 import { isArchiveMime } from '../util/mime'
 
 const EXTRACT_ICON = `
@@ -13,6 +13,8 @@ const EXTRACT_ICON = `
 `.trim()
 
 const archiveNamePattern = /\.(zip|rar|7z|tar|tgz|tbz2|gz|bz2)$/i
+
+type ToastHandle = ReturnType<typeof showLoading>
 
 const isArchiveCandidate = (node: INode): boolean => {
   if (isArchiveMime(node.mime)) {
@@ -45,26 +47,92 @@ const refreshFileView = (): void => {
   filesApp?.fileList?.reload?.()
 }
 
-const pollJobUntilFinished = async (jobId: number): Promise<void> => {
-  const maxAttempts = 600
-  const delayMs = 2000
+const dismissToast = (toast: ToastHandle | null): void => {
+  if (toast === null) {
+    return
+  }
+  try {
+    toast.hideToast()
+  } catch {
+    // toast may already be hidden
+  }
+}
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    await new Promise((resolve) => window.setTimeout(resolve, delayMs))
-    const status = await getExtractJobStatus(jobId)
-    if (status.state === 'done') {
-      showSuccess(
-        t('ncextrak', 'Archive extracted to {folder}', {
-          folder: status.result?.targetFolder ?? '',
-        }),
-      )
-      refreshFileView()
-      return
+const formatProgressMessage = (fileName: string, status: ExtractJobStatus): string => {
+  const stateLabel =
+    status.state === 'queued' ? t('ncextrak', 'queued') : t('ncextrak', 'extracting')
+  const percent = Math.max(0, Math.min(99, status.progress ?? 0))
+  return t('ncextrak', '{name}: {state} {percent}%', {
+    name: fileName,
+    state: stateLabel,
+    percent: String(percent),
+  })
+}
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => window.setTimeout(resolve, ms))
+
+const pollJobUntilFinished = async (jobId: number, fileName: string): Promise<void> => {
+  let toast: ToastHandle | null = showLoading(
+    t('ncextrak', '{name}: queued 0%', { name: fileName }),
+    { timeout: TOAST_PERMANENT_TIMEOUT },
+  )
+  let lastShownPercent = -1
+  let lastShownState: ExtractJobStatus['state'] | null = null
+
+  const maxDurationMs = 30 * 60 * 1000
+  const start = Date.now()
+  let delayMs = 1500
+
+  try {
+    while (Date.now() - start < maxDurationMs) {
+      await sleep(delayMs)
+      delayMs = Math.min(delayMs + 500, 4000)
+
+      let status: ExtractJobStatus
+      try {
+        status = await getExtractJobStatus(jobId)
+      } catch {
+        continue
+      }
+
+      if (status.state === 'done') {
+        dismissToast(toast)
+        toast = null
+        showSuccess(
+          t('ncextrak', 'Archive extracted to {folder}', {
+            folder: status.result?.targetFolder ?? '',
+          }),
+        )
+        refreshFileView()
+        return
+      }
+
+      if (status.state === 'failed') {
+        dismissToast(toast)
+        toast = null
+        showError(
+          t('ncextrak', 'Archive extraction failed: {error}', { error: status.error ?? '' }),
+        )
+        return
+      }
+
+      const percent = Math.max(0, Math.min(99, status.progress ?? 0))
+      if (percent !== lastShownPercent || status.state !== lastShownState) {
+        dismissToast(toast)
+        toast = showLoading(formatProgressMessage(fileName, status), {
+          timeout: TOAST_PERMANENT_TIMEOUT,
+        })
+        lastShownPercent = percent
+        lastShownState = status.state
+      }
     }
-    if (status.state === 'failed') {
-      showError(t('ncextrak', 'Archive extraction failed: {error}', { error: status.error ?? '' }))
-      return
-    }
+
+    dismissToast(toast)
+    toast = null
+    showError(t('ncextrak', 'Archive extraction is still running, please check back later'))
+  } finally {
+    dismissToast(toast)
   }
 }
 
@@ -75,6 +143,8 @@ const runExtract = async (node: INode): Promise<boolean | null> => {
     return null
   }
 
+  const fileName = node.basename ?? ''
+
   try {
     const result = await requestExtract(fileId)
     if (result.mode === 'sync' && result.result) {
@@ -84,8 +154,7 @@ const runExtract = async (node: INode): Promise<boolean | null> => {
     }
 
     if (result.mode === 'async' && typeof result.jobId === 'number') {
-      showSuccess(t('ncextrak', 'Extraction queued in background'))
-      void pollJobUntilFinished(result.jobId)
+      void pollJobUntilFinished(result.jobId, fileName)
       return true
     }
   } catch {
