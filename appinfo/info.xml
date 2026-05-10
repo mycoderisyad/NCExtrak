@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	<id>ncextrak</id>
+	<name>NCExtrak</name>
+	<summary>Extract archives directly from Nextcloud Files</summary>
+	<description>Extract supported archives directly from the Files context menu.</description>
+	<version>0.1.0</version>
+	<licence>agpl</licence>
+	<author mail="maintainer@example.com">NCExtrak</author>
+	<namespace>NCExtrak</namespace>
+	<category>files</category>
+	<dependencies>
+		<nextcloud min-version="30" max-version="33"/>
+	</dependencies>
+	<types>
+		<filesystem/>
+	</types>
+	<navigations/>
+	<notifications>
+		<notifier>OCA\NCExtrak\Notification\Notifier</notifier>
+	</notifications>
+</info>

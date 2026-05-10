@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.2
+          coverage: none
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Install PHP dependencies
+        run: composer install
+
+      - name: Run JavaScript lint
+        run: npm run lint
+
+      - name: Run PHP lint
+        run: composer run lint
+
+      - name: Build frontend assets
+        run: npm run build

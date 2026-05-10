@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.2
+          coverage: none
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Install production PHP dependencies
+        run: composer install --no-dev --optimize-autoloader
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Prepare package directory
+        run: |
+          APP_ID=ncextrak
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          mkdir -p build/${APP_ID}
+          rsync -a \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.agents' \
+            --exclude 'node_modules' \
+            --exclude 'build' \
+            --exclude 'tests' \
+            ./ build/${APP_ID}/
+          cd build
+          zip -r "${APP_ID}-${VERSION}.zip" "${APP_ID}"
+          tar -czf "${APP_ID}-${VERSION}.tar.gz" "${APP_ID}"
+
+      - name: Publish release artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/ncextrak-*.zip
+            build/ncextrak-*.tar.gz
