@@ -28,6 +28,7 @@
     "format": "php-cs-fixer fix --config=.php-cs-fixer.dist.php"
   },
   "config": {
+    "vendor-dir": "composer",
     "sort-packages": true,
     "platform": {
       "php": "8.2.31"
