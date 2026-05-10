@@ -1,5 +1,5 @@
 import { showError, showSuccess } from '@nextcloud/dialogs'
-import { FileAction, Permission, registerFileAction, type Node } from '@nextcloud/files'
+import { Permission, registerFileAction, type IFileAction, type INode } from '@nextcloud/files'
 import { translate as t } from '@nextcloud/l10n'
 
 import { getExtractJobStatus, requestExtract } from '../api/extractClient'
@@ -14,16 +14,16 @@ const EXTRACT_ICON = `
 
 const archiveNamePattern = /\.(zip|rar|7z|tar|tgz|tbz2|gz|bz2)$/i
 
-const isArchiveCandidate = (node: Node): boolean => {
+const isArchiveCandidate = (node: INode): boolean => {
   if (isArchiveMime(node.mime)) {
     return true
   }
   return archiveNamePattern.test(node.basename ?? '')
 }
 
-const canWriteSibling = (node: Node): boolean => {
+const canExtract = (node: INode): boolean => {
   const perms = typeof node.permissions === 'number' ? node.permissions : 0
-  return (perms & Permission.CREATE) !== 0 || (perms & Permission.UPDATE) !== 0
+  return (perms & Permission.UPDATE) !== 0 || (perms & Permission.CREATE) !== 0
 }
 
 const refreshFileView = (): void => {
@@ -68,49 +68,56 @@ const pollJobUntilFinished = async (jobId: number): Promise<void> => {
   }
 }
 
+const runExtract = async (node: INode): Promise<boolean | null> => {
+  const fileId = typeof node.fileid === 'number' ? node.fileid : 0
+  if (fileId <= 0) {
+    showError(t('ncextrak', 'Unable to resolve target file ID'))
+    return null
+  }
+
+  try {
+    const result = await requestExtract(fileId)
+    if (result.mode === 'sync' && result.result) {
+      showSuccess(t('ncextrak', 'Extracted to {folder}', { folder: result.result.targetFolder }))
+      refreshFileView()
+      return true
+    }
+
+    if (result.mode === 'async' && typeof result.jobId === 'number') {
+      showSuccess(t('ncextrak', 'Extraction queued in background'))
+      void pollJobUntilFinished(result.jobId)
+      return true
+    }
+  } catch {
+    showError(t('ncextrak', 'Archive extraction failed'))
+    return false
+  }
+
+  return null
+}
+
 export const registerExtractAction = (): void => {
-  const action = new FileAction({
+  const action: IFileAction = {
     id: 'ncextrak-extract',
     displayName: () => t('ncextrak', 'Extract here'),
     iconSvgInline: () => EXTRACT_ICON,
     order: 25,
-    enabled: (files) => {
-      if (files.length !== 1) {
+    enabled: ({ nodes }) => {
+      const [node] = nodes
+      if (!node || nodes.length !== 1) {
         return false
       }
-      const node = files[0]
-      return isArchiveCandidate(node) && canWriteSibling(node)
+      return isArchiveCandidate(node) && canExtract(node)
     },
-    exec: async (file) => {
-      const fileId = typeof file.fileid === 'number' ? file.fileid : 0
-      if (fileId <= 0) {
-        showError(t('ncextrak', 'Unable to resolve target file ID'))
+    exec: async ({ nodes }) => {
+      const [node] = nodes
+      if (!node) {
         return null
       }
-
-      try {
-        const result = await requestExtract(fileId)
-        if (result.mode === 'sync' && result.result) {
-          showSuccess(
-            t('ncextrak', 'Extracted to {folder}', { folder: result.result.targetFolder }),
-          )
-          refreshFileView()
-          return true
-        }
-
-        if (result.mode === 'async' && typeof result.jobId === 'number') {
-          showSuccess(t('ncextrak', 'Extraction queued in background'))
-          void pollJobUntilFinished(result.jobId)
-          return true
-        }
-      } catch {
-        showError(t('ncextrak', 'Archive extraction failed'))
-        return false
-      }
-
-      return null
+      return runExtract(node)
     },
-  })
+    execBatch: async ({ nodes }) => Promise.all(nodes.map((node) => runExtract(node))),
+  }
 
   registerFileAction(action)
 }

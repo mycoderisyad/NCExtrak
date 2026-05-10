@@ -13,9 +13,10 @@ export default defineConfig({
 			input: 'src/main.ts',
 			output: {
 				entryFileNames: 'ncextrak-main.js',
-				chunkFileNames: 'ncextrak-[name].js',
 				assetFileNames: 'ncextrak-[name][extname]',
-				format: 'es',
+				format: 'iife',
+				inlineDynamicImports: true,
+				name: 'NCExtrak',
 			},
 		},
 		target: 'es2022',
