@@ -6,8 +6,8 @@ namespace OCA\NCExtrak\Controller;
 
 use OCA\NCExtrak\BackgroundJob\ExtractJob;
 use OCA\NCExtrak\Db\JobMapper;
-use OCA\NCExtrak\Dto\ExtractOptions;
 use OCA\NCExtrak\Exception\ExtractionException;
+use OCA\NCExtrak\Service\ExtractOptionsFactory;
 use OCA\NCExtrak\Service\ExtractionService;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http;
@@ -18,7 +18,6 @@ use OCP\BackgroundJob\IJobList;
 use OCP\Constants;
 use OCP\Files\File;
 use OCP\Files\IRootFolder;
-use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IUserSession;
 
@@ -29,9 +28,9 @@ class ExtractController extends OCSController
         IRequest $request,
         private IUserSession $userSession,
         private IRootFolder $rootFolder,
-        private IConfig $config,
         private IJobList $jobList,
         private JobMapper $jobMapper,
+        private ExtractOptionsFactory $optionsFactory,
         private ExtractionService $extractionService,
     ) {
         parent::__construct($appName, $request);
@@ -45,7 +44,7 @@ class ExtractController extends OCSController
             return new DataResponse(['message' => 'Authentication required'], Http::STATUS_UNAUTHORIZED);
         }
 
-        $options = $this->buildOptions($overwrite);
+        $options = $this->optionsFactory->create($overwrite);
         $source = $this->resolveSourceFile($user->getUID(), $fileId);
         if ($source === null) {
             return new DataResponse(['message' => 'File not found'], Http::STATUS_NOT_FOUND);
@@ -117,26 +116,6 @@ class ExtractController extends OCSController
             'error' => $job->getError(),
             'result' => $payload,
         ]);
-    }
-
-    private function buildOptions(bool $overwrite): ExtractOptions
-    {
-        $syncLimit = (int) $this->config->getSystemValue('ncextrak.sync_size_limit', 52428800);
-        $maxEntries = (int) $this->config->getSystemValue('ncextrak.max_entries', 100000);
-        $maxSize = (int) $this->config->getSystemValue('ncextrak.max_size', 2199023255552);
-        $workDir = trim((string) $this->config->getSystemValue('ncextrak.work_dir', ''));
-        $workspaceReserve = (int) $this->config->getSystemValue('ncextrak.work_reserve', 2147483648);
-        $expansionFactor = (int) $this->config->getSystemValue('ncextrak.expected_expansion_factor', 2);
-
-        return new ExtractOptions(
-            syncSizeLimitBytes: $syncLimit,
-            maxEntries: $maxEntries,
-            maxUncompressedSizeBytes: $maxSize,
-            workspaceDirectory: $workDir !== '' ? $workDir : null,
-            workspaceReserveBytes: $workspaceReserve,
-            expectedExpansionFactor: max(1, $expansionFactor),
-            overwrite: $overwrite,
-        );
     }
 
     private function resolveSourceFile(string $uid, int $fileId): ?File

@@ -29,11 +29,12 @@ NCExtrak is a Nextcloud app for extracting archives directly from the Files cont
 Set these values in `config/config.php` to override defaults:
 
 ```php
-'ncextrak.sync_size_limit' => 50 * 1024 * 1024,
-'ncextrak.max_entries' => 100000,
+'ncextrak.profile' => 'home_server', // home_server|balanced|high_throughput
+'ncextrak.sync_size_limit' => 8 * 1024 * 1024,
+'ncextrak.max_entries' => 400000,
 'ncextrak.max_size' => 2 * 1024 * 1024 * 1024 * 1024,
 'ncextrak.work_dir' => '/mnt/fast-disk/ncextrak-work',
-'ncextrak.work_reserve' => 2 * 1024 * 1024 * 1024,
+'ncextrak.work_reserve' => 8 * 1024 * 1024 * 1024,
 'ncextrak.expected_expansion_factor' => 2,
 ```
 
@@ -44,6 +45,12 @@ Set these values in `config/config.php` to override defaults:
 - Increase `ncextrak.max_size` to match your expected uncompressed output
 - Keep `ncextrak.work_reserve` at least 2-10 GB to avoid disk full conditions
 - Keep Nextcloud cron active because large extraction runs in background jobs
+
+### Preset profiles
+
+- `home_server` (default): tuned for older hardware, aggressive async behavior, safe disk reserve
+- `balanced`: mixed workloads with moderate hardware
+- `high_throughput`: stronger hardware and higher parallel throughput
 
 ## Development
 
