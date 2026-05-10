@@ -1,8 +1,11 @@
 node_modules/
 vendor/
+composer/
 js/
 build/
 dist/
 .idea/
 .vscode/
 .php-cs-fixer.cache
+RELEASE.md
+scripts/

@@ -8,7 +8,7 @@ use OCP\AppFramework\Db\Entity;
 
 class Job extends Entity
 {
-    protected ?int $id = null;
+    public ?int $id = null;
     protected string $uid = '';
     protected int $sourceFileId = 0;
     protected string $state = 'queued';
