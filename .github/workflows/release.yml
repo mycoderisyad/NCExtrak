@@ -2,14 +2,59 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
+  evaluate-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.version_gate.outputs.should_release }}
+      version: ${{ steps.version_gate.outputs.version }}
+      tag: ${{ steps.version_gate.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Evaluate package version gate
+        id: version_gate
+        shell: bash
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          CURRENT_TAG="v${CURRENT_VERSION}"
+
+          if git show HEAD~1:package.json >/tmp/prev_package.json 2>/dev/null; then
+            PREVIOUS_VERSION=$(node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('/tmp/prev_package.json','utf8')); process.stdout.write(String(p.version || '0.0.0'));")
+          else
+            PREVIOUS_VERSION="0.0.0"
+          fi
+
+          SHOULD_RELEASE=$(node -e "
+            const normalize=(v)=>String(v||'0.0.0').split('.').map((x)=>parseInt(x,10)||0);
+            const cmp=(a,b)=>{for(let i=0;i<3;i++){if(a[i]>b[i]) return 1; if(a[i]<b[i]) return -1;} return 0;};
+            const current=normalize(process.argv[1]);
+            const previous=normalize(process.argv[2]);
+            process.stdout.write(cmp(current, previous) > 0 ? 'true' : 'false');
+          " "$CURRENT_VERSION" "$PREVIOUS_VERSION")
+
+          echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$CURRENT_TAG" >> "$GITHUB_OUTPUT"
+          echo "should_release=$SHOULD_RELEASE" >> "$GITHUB_OUTPUT"
+
+          if [ "$SHOULD_RELEASE" = "true" ]; then
+            echo "Release enabled: version increased ($PREVIOUS_VERSION -> $CURRENT_VERSION)."
+          else
+            echo "Release skipped: version did not increase ($PREVIOUS_VERSION -> $CURRENT_VERSION)."
+          fi
+
   release:
+    needs: evaluate-version
+    if: needs.evaluate-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -39,8 +84,7 @@ jobs:
       - name: Prepare package directory
         run: |
           APP_ID=ncextrak
-          TAG="${GITHUB_REF_NAME}"
-          VERSION="${TAG#v}"
+          VERSION="${{ needs.evaluate-version.outputs.version }}"
           mkdir -p build/${APP_ID}
           rsync -a \
             --exclude '.git' \
@@ -54,9 +98,26 @@ jobs:
           zip -r "${APP_ID}-${VERSION}.zip" "${APP_ID}"
           tar -czf "${APP_ID}-${VERSION}.tar.gz" "${APP_ID}"
 
+      - name: Ensure release tag exists
+        env:
+          TAG_NAME: ${{ needs.evaluate-version.outputs.tag }}
+        run: |
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag $TAG_NAME already exists locally."
+          else
+            git tag "$TAG_NAME"
+          fi
+          if git ls-remote --tags origin "$TAG_NAME" | grep -q "$TAG_NAME"; then
+            echo "Tag $TAG_NAME already exists on origin."
+          else
+            git push origin "$TAG_NAME"
+          fi
+
       - name: Publish release artifacts
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.evaluate-version.outputs.tag }}
+          name: NCExtrak ${{ needs.evaluate-version.outputs.tag }}
           files: |
             build/ncextrak-*.zip
             build/ncextrak-*.tar.gz
