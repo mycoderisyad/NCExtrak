@@ -1,5 +1,5 @@
 APP_ID := ncextrak
-VERSION ?= 0.1.3
+VERSION ?= 0.1.4
 PACKAGE_DIR := build
 PACKAGE_NAME := $(APP_ID)-$(VERSION)
 
