@@ -1,25 +1,20 @@
 # NCExtrak
 
-NCExtrak is a Nextcloud app for extracting archives directly from the Files context menu.
+NCExtrak is a Nextcloud app that adds an Extract here action to the Files context menu.
+
+![NCExtrak Files context menu](image.png)
 
 ## Features
 
-- Right-click action: **Extract here**
-- Formats: ZIP, TAR, GZ, BZ2, RAR, 7Z
-- Extraction target: dedicated subfolder named after archive
-- Hybrid execution:
-  - files <= 50 MB run synchronously
-  - files > 50 MB are queued in background jobs
-- Notification on background completion/failure
+- Extract archives from the Files context menu.
+- Supported formats: ZIP, TAR, GZ, BZ2, RAR, and 7Z.
 
-## Runtime dependencies
-
-### Required
+## Requirements
 
 - PHP 8.2+
 - Nextcloud 30-33
 
-### Optional for full format support
+### Optional
 
 - `p7zip` / `p7zip-full` for 7Z extraction
 - `unrar` binary or PHP `rar` extension for RAR extraction
@@ -38,19 +33,7 @@ Set these values in `config/config.php` to override defaults:
 'ncextrak.expected_expansion_factor' => 2,
 ```
 
-### Large archive guidance (10 GB to 100+ GB)
-
-- Use async mode (default for files above `ncextrak.sync_size_limit`)
-- Set `ncextrak.work_dir` to a disk with large free space
-- Increase `ncextrak.max_size` to match your expected uncompressed output
-- Keep `ncextrak.work_reserve` at least 2-10 GB to avoid disk full conditions
-- Keep Nextcloud cron active because large extraction runs in background jobs
-
-### Preset profiles
-
-- `home_server` (default): tuned for older hardware, aggressive async behavior, safe disk reserve
-- `balanced`: mixed workloads with moderate hardware
-- `high_throughput`: stronger hardware and higher parallel throughput
+Profiles: `home_server` (default), `balanced`, and `high_throughput`.
 
 ## Development
 
@@ -69,7 +52,7 @@ npm run format
 composer run format
 ```
 
-## Manual installation on server
+## Manual installation
 
 1. Download release zip from GitHub Releases.
 2. Extract into `<nextcloud>/apps/ncextrak`.
@@ -78,13 +61,3 @@ composer run format
 4. Enable app:
    - `sudo -u www-data php occ app:enable ncextrak`
 5. Ensure Nextcloud cron is configured for background jobs.
-
-## Packaging
-
-Use:
-
-```bash
-make package VERSION=0.1.0
-```
-
-Output zip is generated in `build/`.
